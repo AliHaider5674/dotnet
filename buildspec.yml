@@ -1,0 +1,10 @@
+version: 0.2
+phases:
+  build:
+    commands:
+      - dotnet restore
+      - dotnet build
+  post_build:
+    commands:
+      - aws s3 cp bin/Debug/netcoreapp3.1/* s3://${ARTIFACTS_BUCKET}/
+      - aws s3 ls s3://${ARTIFACTS_BUCKET}/
