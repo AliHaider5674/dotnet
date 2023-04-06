@@ -1,0 +1,98 @@
+Resources:
+  ArtifactsBucket:
+    Type: "AWS::S3::Bucket"
+    Properties: {}
+      
+  
+  CodeDeployServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "CodeDeployServiceRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codedeploy.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda"
+  
+  CodeBuildServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "CodeBuildServiceRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+  
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: "LambdaExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  
+  CodeCommitRepository:
+    Type: "AWS::CodeCommit::Repository"
+    Properties:
+      RepositoryName: "MyCodeCommitRepo"
+
+  CodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: "MyCodeBuildProject"
+      Source:
+        Type: "GITHUB"
+        Location: "https://github.com/dotnet/samples/tree/main/mef/simple-calculator/vb"
+        BuildSpec: "buildspec.yml"
+        Auth:
+          Type: OAUTH
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/standard:4.0"
+        Type: "LINUX_CONTAINER"
+        EnvironmentVariables:
+          - Name: "ARTIFACTS_BUCKET"
+            Value: !Ref "ArtifactsBucket"
+      ServiceRole: !Ref "CodeBuildServiceRole"
+      Artifacts:
+        Type: "S3"
+        Location: !Ref "ArtifactsBucket"
+        Name: "my-artifact.zip"
+      TimeoutInMinutes: 60 
+
+  
+  LambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: "MyLambdaFunction"
+      Handler: "MyLambdaFunction::FunctionHandler"
+      Role: !GetAtt "LambdaExecutionRole.Arn"
+      Runtime: "dotnetcore3.1"
+      Code:
+        S3Bucket: !Ref "ArtifactsBucket"
+        S3Key: !Join ['', ["MyLambdaFunction", "/", !Ref "AWS::StackName", ".zip"]]
+      Timeout: 30
+  
+ 
+  CodeDeployApplication:
+    Type: "AWS::CodeDeploy::Application"
+    Properties:
+      ApplicationName: "MyCodeDeployApp"
